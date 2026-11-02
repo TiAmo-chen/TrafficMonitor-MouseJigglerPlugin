@@ -1,0 +1,62 @@
+#include <windows.h>
+#include "resource.h"
+
+#pragma code_page(65001)
+
+/////////////////////////////////////////////////////////////////////////////
+// 图标
+IDI_PLUGIN_ICON         ICON            "res\\mouse.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+// 选项对话框
+IDD_OPTIONS_DIALOG DIALOGEX 0, 0, 270, 204
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "MouseJiggler 选项"
+FONT 9, "微软雅黑", 400, 0, 0x86
+BEGIN
+    CONTROL         "启用鼠标晃动",IDC_ENABLE_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,8,200,10
+    GROUPBOX        "晃动方式",IDC_STATIC,10,24,250,42
+    CONTROL         "禅动（指针不动，只重置系统空闲计时）",IDC_MODE_ZEN,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,18,36,235,10
+    CONTROL         "普通（指针 ±4 像素来回微动）",IDC_MODE_NORMAL,"Button",BS_AUTORADIOBUTTON,18,50,235,10
+    LTEXT           "晃动间隔：",IDC_STATIC,10,74,46,10
+    EDITTEXT        IDC_INTERVAL_EDIT,58,72,36,13,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "秒（1-60）",IDC_INTERVAL_UNIT,100,74,60,10
+    GROUPBOX        "时间计划",IDC_STATIC,10,90,250,44
+    CONTROL         "仅在周内工作时间自动开启（周一~周五 08:30-17:30）",IDC_SCHEDULE_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,102,238,10
+    LTEXT           "",IDC_SCHEDULE_STATUS,18,116,238,10
+    CONTROL         "TrafficMonitor 启动后立即开始晃动",IDC_STARTONLOAD_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,142,250,10
+    CONTROL         "用户正在操作鼠标时跳过本次晃动",IDC_SKIPACTIVE_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,154,250,10
+    LTEXT           "",IDC_STATUS_STATIC,10,172,250,10
+    PUSHBUTTON      "立即晃动一次",IDC_JIGGLE_ONCE,10,184,66,14
+    DEFPUSHBUTTON   "确定",IDOK,152,184,48,14
+    PUSHBUTTON      "取消",IDCANCEL,208,184,48,14
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// 版本信息
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS 0x40004L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080404b0"
+        BEGIN
+            VALUE "FileDescription", "MouseJiggler plugin for TrafficMonitor"
+            VALUE "FileVersion", "1.0.0.0"
+            VALUE "InternalName", "MouseJiggler"
+            VALUE "OriginalFilename", "MouseJiggler.dll"
+            VALUE "ProductName", "MouseJiggler TrafficMonitor Plugin"
+            VALUE "ProductVersion", "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x804, 1200
+    END
+END

@@ -32,7 +32,7 @@ public class WinCap {
 # 必须开启 DPI 感知，否则 GetWindowRect 拿到的是缩放后的虚拟坐标，截图会缺一块
 try { [WinCap]::SetProcessDpiAwareness(2) | Out-Null } catch {}
 
-$exe = Join-Path $PSScriptRoot '..\bin\uipreview.exe'
+$exe = Join-Path $PSScriptRoot '..\bin\tools\uipreview.exe'
 $out = Join-Path $PSScriptRoot '..\docs\options-dialog.png'
 New-Item -ItemType Directory -Force -Path (Split-Path $out) | Out-Null
 

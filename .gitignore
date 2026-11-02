@@ -10,3 +10,6 @@ obj/
 # local settings
 plugins/
 *.ini
+dist/
+release-notes.md
+

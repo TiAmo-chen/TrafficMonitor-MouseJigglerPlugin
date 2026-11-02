@@ -1,19 +1,15 @@
-# Build (and optionally deploy) the TrafficMonitor plugin.
-#
-#   .\build.ps1                                    build Release
-#   .\build.ps1 -Debug                             build Debug
-#   .\build.ps1 -Deploy                            build and copy into the running TrafficMonitor
-#   .\build.ps1 -Deploy -TrafficMonitorDir "D:\apps\TrafficMonitor"
 param(
+    [ValidateSet('x64', 'Win32')]
+    [string]$Platform = 'x64',
     [switch]$Debug,
     [switch]$Deploy,
+    [switch]$Package,
     [string]$TrafficMonitorDir
 )
 
 $ErrorActionPreference = 'Stop'
 $configuration = if ($Debug) { 'Debug' } else { 'Release' }
 
-# Locate MSBuild (Visual Studio 2022)
 $msbuild = 'C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe'
 if (-not (Test-Path $msbuild)) {
     $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
@@ -25,12 +21,35 @@ if (-not (Test-Path $msbuild)) {
 if (-not (Test-Path $msbuild)) { throw 'MSBuild not found, please install Visual Studio 2022 with the C++ workload' }
 
 $project = Join-Path $PSScriptRoot 'MouseJigglerPlugin.vcxproj'
-& $msbuild $project /t:Build /p:Configuration=$configuration /p:Platform=x64 /v:minimal /nologo /nodeReuse:false
-if ($LASTEXITCODE -ne 0) { throw "build failed (exit $LASTEXITCODE)" }
 
-$dll = Join-Path $PSScriptRoot "bin\$configuration\MouseJiggler.dll"
-if (-not (Test-Path $dll)) { throw "output not found: $dll" }
-Write-Host "`nbuilt: $dll ($([math]::Round((Get-Item $dll).Length / 1KB, 1)) KB)" -ForegroundColor Green
+function Build-One([string]$platformName) {
+    & $msbuild $project /t:Build /p:Configuration=$configuration /p:Platform=$platformName /v:minimal /nologo /nodeReuse:false | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "build failed for $platformName (exit $LASTEXITCODE)" }
+    $path = Join-Path $PSScriptRoot "bin\$platformName\$configuration\MouseJiggler.dll"
+    if (-not (Test-Path $path)) { throw "output not found: $path" }
+    Write-Host ("built: {0} ({1} KB)" -f $path, [math]::Round((Get-Item $path).Length / 1KB, 1)) -ForegroundColor Green
+    return $path
+}
+
+if ($Package) {
+    # Build both architectures and produce release zips: MouseJiggler_V<version>_<arch>.zip
+    $version = '1.0'
+    $dist = Join-Path $PSScriptRoot 'dist'
+    New-Item -ItemType Directory -Force -Path $dist | Out-Null
+    foreach ($pair in @(@('x64', 'x64'), @('Win32', 'x86'))) {
+        $dll = Build-One $pair[0]
+        $staging = Join-Path $env:TEMP ("mj_" + $pair[1])
+        New-Item -ItemType Directory -Force -Path $staging | Out-Null
+        Copy-Item $dll (Join-Path $staging 'MouseJiggler.dll') -Force
+        $zip = Join-Path $dist "MouseJiggler_V${version}_$($pair[1]).zip"
+        if (Test-Path $zip) { Remove-Item $zip -Force }
+        Compress-Archive -Path (Join-Path $staging 'MouseJiggler.dll') -DestinationPath $zip
+        Write-Host "package: $zip" -ForegroundColor Green
+    }
+    exit 0
+}
+
+$dll = Build-One $Platform
 
 if ($Deploy) {
     if (-not $TrafficMonitorDir) {

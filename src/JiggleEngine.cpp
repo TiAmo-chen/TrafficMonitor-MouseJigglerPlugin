@@ -66,6 +66,20 @@ void CJiggleEngine::RequestJiggleOnce()
     m_jiggle_once.store(true);
 }
 
+bool CJiggleEngine::TakeAutoToggle(bool& value)
+{
+    if (!m_auto_toggle_pending.exchange(false))
+        return false;
+    value = m_auto_toggle_value.load();
+    return true;
+}
+
+void CJiggleEngine::ReportAutoToggle(bool value)
+{
+    m_auto_toggle_value.store(value);
+    m_auto_toggle_pending.store(true);
+}
+
 CJiggleEngine::Status CJiggleEngine::GetStatus() const
 {
     SYSTEMTIME now{};
@@ -78,7 +92,8 @@ CJiggleEngine::Status CJiggleEngine::GetStatus() const
     status.interval_sec = m_interval_sec.load();
     status.started = m_started.load();
     status.in_schedule = !status.schedule_enabled || m_schedule.InWindow(now);
-    status.running = status.started && status.enable && status.in_schedule;
+    // 主开关就是唯一真相：计划外手动开启也是“运行中”
+    status.running = status.started && status.enable;
     status.count = m_count.load();
 
     bool change_is_start = false;
@@ -130,11 +145,73 @@ void CJiggleEngine::ThreadProc()
 
 bool CJiggleEngine::EffectiveNow(const SYSTEMTIME& local) const
 {
-    if (!m_enable.load())
-        return false;
-    if (m_schedule_enabled.load() && !m_schedule.InWindow(local))
-        return false;
-    return true;
+    (void)local;
+    // 主开关是唯一真相：时间计划只负责在边界时刻帮用户切换它
+    return m_enable.load();
+}
+
+void CJiggleEngine::ApplyScheduleBoundaries(const SYSTEMTIME& local)
+{
+    if (!m_schedule_enabled.load())
+    {
+        m_prev_in_schedule = m_schedule.InWindow(local);
+        m_prev_minute = -1;
+        m_first_tick = false;
+        return;
+    }
+
+    const bool in_window = m_schedule.InWindow(local);
+    const int minute = local.wHour * 60 + local.wMinute;
+
+    if (m_first_tick)
+    {
+        m_prev_in_schedule = in_window;
+        m_prev_minute = minute;
+        m_first_tick = false;
+        return;
+    }
+
+    if (in_window && !m_prev_in_schedule)
+    {
+        // 进入工作时间 -> 自动开启
+        if (!m_enable.load())
+        {
+            m_enable.store(true);
+            ReportAutoToggle(true);
+            PushNotification(L"MouseJiggler：已到上班时间，自动开始晃动。");
+        }
+    }
+    else if (!in_window && m_prev_in_schedule)
+    {
+        // 离开工作时间 -> 自动关闭
+        if (m_enable.load())
+        {
+            m_enable.store(false);
+            ReportAutoToggle(false);
+            PushNotification(L"MouseJiggler：已到下班时间，自动停止晃动。");
+        }
+    }
+    else if (!in_window && m_prev_minute >= 0)
+    {
+        // 计划外（周末、手动开启的晚下班等）：到每天的结束时刻也收一次，避免忘关
+        int start = 0;
+        int duration = 0;
+        bool weekdays_only = true;
+        m_schedule.GetConfig(start, duration, weekdays_only);
+        if (start + duration <= 24 * 60)
+        {
+            const int end_minute = start + duration;
+            if (m_prev_minute < end_minute && minute >= end_minute && m_enable.load())
+            {
+                m_enable.store(false);
+                ReportAutoToggle(false);
+                PushNotification(L"MouseJiggler：已到计划结束时间，自动停止晃动。");
+            }
+        }
+    }
+
+    m_prev_in_schedule = in_window;
+    m_prev_minute = minute;
 }
 
 void CJiggleEngine::Tick()
@@ -142,6 +219,7 @@ void CJiggleEngine::Tick()
     SYSTEMTIME local{};
     ::GetLocalTime(&local);
 
+    ApplyScheduleBoundaries(local);
     const bool running = EffectiveNow(local);
     const unsigned long long tick = ::GetTickCount64();
 
@@ -210,26 +288,11 @@ void CJiggleEngine::UpdateTexts(const SYSTEMTIME& local, bool running)
     const bool schedule_enabled = m_schedule_enabled.load();
     const bool in_schedule = !schedule_enabled || m_schedule.InWindow(local);
 
-    if (schedule_enabled)
-    {
-        if (m_first_tick)
-        {
-            m_prev_in_schedule = in_schedule;
-        }
-        else if (in_schedule != m_prev_in_schedule)
-        {
-            PushNotification(in_schedule ? L"MouseJiggler：已进入工作时间，自动开始晃动。"
-                                         : L"MouseJiggler：已离开工作时间，自动停止晃动。");
-            m_prev_in_schedule = in_schedule;
-        }
-    }
-    m_first_tick = false;
-
     std::wstring value;
     if (!m_enable.load())
         value = L"关";
     else if (!in_schedule)
-        value = L"计划外";
+        value = L"手动";
     else
         value = L"开";
     m_value_text.Set(value);
@@ -239,7 +302,10 @@ void CJiggleEngine::UpdateTexts(const SYSTEMTIME& local, bool running)
 
     if (running)
     {
-        swprintf_s(buffer, L"运行中 · 每 %d 秒 · %s", m_interval_sec.load(), m_zen.load() ? L"禅动" : L"普通");
+        if (schedule_enabled && !in_schedule)
+            swprintf_s(buffer, L"运行中（计划外·手动）· 每 %d 秒 · %s", m_interval_sec.load(), m_zen.load() ? L"禅动" : L"普通");
+        else
+            swprintf_s(buffer, L"运行中 · 每 %d 秒 · %s", m_interval_sec.load(), m_zen.load() ? L"禅动" : L"普通");
         tooltip = buffer;
 
         if (schedule_enabled)
@@ -260,15 +326,19 @@ void CJiggleEngine::UpdateTexts(const SYSTEMTIME& local, bool running)
             tooltip += buffer;
         }
     }
-    else if (!m_enable.load())
+    else if (schedule_enabled && in_schedule)
     {
-        tooltip = L"已停止（手动关闭）";
+        // 计划内却停着 = 用户手动关掉了，给个恢复时间
+        bool change_is_start = false;
+        const int minutes = m_schedule.MinutesToChange(local, change_is_start);
+        swprintf_s(buffer, L"已停止（手动关闭）· %d 分钟后自动开始", minutes);
+        tooltip = buffer;
     }
     else if (schedule_enabled)
     {
         bool change_is_start = false;
         const int minutes = m_schedule.MinutesToChange(local, change_is_start);
-        swprintf_s(buffer, L"已停止 · 不在工作时间，%d 分钟后自动开始", minutes);
+        swprintf_s(buffer, L"已停止 · 计划外，%d 分钟后自动开始", minutes);
         tooltip = buffer;
     }
     else

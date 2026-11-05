@@ -22,7 +22,7 @@ BEGIN
     EDITTEXT        IDC_INTERVAL_EDIT,58,72,36,13,ES_AUTOHSCROLL | ES_NUMBER
     LTEXT           "秒（1-60）",IDC_INTERVAL_UNIT,100,74,60,10
     GROUPBOX        "时间计划",IDC_STATIC,10,90,250,44
-    CONTROL         "仅在周内工作时间自动开启（周一~周五 08:30-17:30）",IDC_SCHEDULE_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,102,238,10
+    CONTROL         "按工作时间自动开关（周一~周五 08:30-17:30）",IDC_SCHEDULE_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,18,102,238,10
     LTEXT           "",IDC_SCHEDULE_STATUS,18,116,238,10
     CONTROL         "TrafficMonitor 启动后立即开始晃动",IDC_STARTONLOAD_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,142,250,10
     CONTROL         "用户正在操作鼠标时跳过本次晃动",IDC_SKIPACTIVE_CHECK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,154,250,10
@@ -35,8 +35,8 @@ END
 /////////////////////////////////////////////////////////////////////////////
 // 版本信息
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,0
- PRODUCTVERSION 1,0,0,0
+ FILEVERSION 1,1,0,0
+ PRODUCTVERSION 1,1,0,0
  FILEFLAGSMASK 0x3fL
  FILEFLAGS 0x0L
  FILEOS 0x40004L
@@ -48,11 +48,11 @@ BEGIN
         BLOCK "080404b0"
         BEGIN
             VALUE "FileDescription", "MouseJiggler plugin for TrafficMonitor"
-            VALUE "FileVersion", "1.0.0.0"
+            VALUE "FileVersion", "1.1.0.0"
             VALUE "InternalName", "MouseJiggler"
             VALUE "OriginalFilename", "MouseJiggler.dll"
             VALUE "ProductName", "MouseJiggler TrafficMonitor Plugin"
-            VALUE "ProductVersion", "1.0.0.0"
+            VALUE "ProductVersion", "1.1.0.0"
         END
     END
     BLOCK "VarFileInfo"

@@ -110,6 +110,43 @@ namespace
                        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
     }
 
+    void ReadControls(HWND dlg, OptionsContext& ctx)
+    {
+        ctx.settings.enable = ::IsDlgButtonChecked(dlg, IDC_ENABLE_CHECK) == BST_CHECKED;
+        ctx.settings.zen = ::IsDlgButtonChecked(dlg, IDC_MODE_ZEN) == BST_CHECKED;
+        ctx.settings.schedule_enabled = ::IsDlgButtonChecked(dlg, IDC_SCHEDULE_CHECK) == BST_CHECKED;
+        ctx.settings.start_on_load = ::IsDlgButtonChecked(dlg, IDC_STARTONLOAD_CHECK) == BST_CHECKED;
+        ctx.settings.skip_when_user_active = ::IsDlgButtonChecked(dlg, IDC_SKIPACTIVE_CHECK) == BST_CHECKED;
+
+        BOOL translated = FALSE;
+        UINT interval = ::GetDlgItemInt(dlg, IDC_INTERVAL_EDIT, &translated, FALSE);
+        if (!translated || interval < 1) interval = 1;
+        if (interval > 60) interval = 60;
+        ctx.settings.interval_sec = static_cast<int>(interval);
+    }
+
+    // 改动即时生效：读控件 -> 推给插件（应用 + 写盘）
+    void PushSettings(HWND dlg)
+    {
+        OptionsContext* ctx = GetContext(dlg);
+        if (ctx == nullptr)
+            return;
+        ReadControls(dlg, *ctx);
+        ctx->changed = true;
+        if (ctx->apply)
+            ctx->apply(ctx->settings);
+    }
+
+    std::wstring FormatAge(unsigned long age_ms)
+    {
+        wchar_t buffer[32]{};
+        if (age_ms < 1000)
+            swprintf_s(buffer, L"%.1f 秒前", age_ms / 1000.0);
+        else
+            swprintf_s(buffer, L"%lu 秒前", age_ms / 1000);
+        return buffer;
+    }
+
     std::wstring BuildWindowLine(const OptionsContext* ctx, const CJiggleEngine::Status& status)
     {
         wchar_t start_text[8]{};
@@ -128,25 +165,13 @@ namespace
         }
         else if (status.in_schedule)
         {
-            swprintf_s(buffer, L" · 计划内，%d 分钟后自动停止", status.minutes_to_change);
-            line += buffer;
+            line += status.enable ? L" · 计划内" : L" · 计划内（已被手动关闭）";
         }
         else
         {
-            swprintf_s(buffer, L" · 计划外，%d 分钟后自动开始", status.minutes_to_change);
-            line += buffer;
+            line += status.enable ? L" · 计划外（手动开启）" : L" · 计划外";
         }
         return line;
-    }
-
-    std::wstring FormatAge(unsigned long age_ms)
-    {
-        wchar_t buffer[32]{};
-        if (age_ms < 1000)
-            swprintf_s(buffer, L"%.1f 秒前", age_ms / 1000.0);
-        else
-            swprintf_s(buffer, L"%lu 秒前", age_ms / 1000);
-        return buffer;
     }
 
     std::wstring BuildStatusLine(const CJiggleEngine::Status& status)
@@ -154,8 +179,12 @@ namespace
         wchar_t buffer[256]{};
         if (status.running)
         {
-            swprintf_s(buffer, L"运行中 · 每 %d 秒 · %s · 累计 %llu 次",
-                       status.interval_sec, status.zen ? L"禅动" : L"普通", status.count);
+            if (status.schedule_enabled && !status.in_schedule)
+                swprintf_s(buffer, L"运行中（计划外·手动）· 每 %d 秒 · %s · 累计 %llu 次",
+                           status.interval_sec, status.zen ? L"禅动" : L"普通", status.count);
+            else
+                swprintf_s(buffer, L"运行中 · 每 %d 秒 · %s · 累计 %llu 次",
+                           status.interval_sec, status.zen ? L"禅动" : L"普通", status.count);
             std::wstring line{ buffer };
             if (status.count > 0)
             {
@@ -164,11 +193,16 @@ namespace
             }
             return line;
         }
-        if (!status.enable)
-            return L"已停止 · 手动关闭";
-        if (status.schedule_enabled)
-            return L"已停止 · 不在工作时间";
-        return L"已停止";
+
+        const wchar_t* reason = L"手动关闭";
+        if (!status.enable && status.schedule_enabled && !status.in_schedule)
+            reason = L"计划外";
+
+        if (status.count > 0)
+            swprintf_s(buffer, L"已停止 · %s · 累计 %llu 次", reason, status.count);
+        else
+            swprintf_s(buffer, L"已停止 · %s", reason);
+        return buffer;
     }
 
     void RefreshStatus(HWND dlg)
@@ -177,30 +211,17 @@ namespace
         if (ctx == nullptr || ctx->engine == nullptr)
             return;
 
-        // The schedule checkbox may have been toggled, use the UI value for the preview
+        const CJiggleEngine::Status status = ctx->engine->GetStatus();
+
+        // 引擎是唯一真相：勾选框/方式永远跟它保持一致（改动已经即时生效，不会被覆盖冲突）
+        ::CheckDlgButton(dlg, IDC_ENABLE_CHECK, status.enable ? BST_CHECKED : BST_UNCHECKED);
+        ctx->settings.enable = status.enable;
         ctx->settings.schedule_enabled = ::IsDlgButtonChecked(dlg, IDC_SCHEDULE_CHECK) == BST_CHECKED;
 
-        const CJiggleEngine::Status status = ctx->engine->GetStatus();
         const std::wstring window_line = BuildWindowLine(ctx, status);
         const std::wstring status_line = BuildStatusLine(status);
         ::SetDlgItemTextW(dlg, IDC_SCHEDULE_STATUS, window_line.c_str());
         ::SetDlgItemTextW(dlg, IDC_STATUS_STATIC, status_line.c_str());
-    }
-
-    void ReadControls(HWND dlg, OptionsContext& ctx)
-    {
-        ctx.settings.enable = ::IsDlgButtonChecked(dlg, IDC_ENABLE_CHECK) == BST_CHECKED;
-        ctx.settings.zen = ::IsDlgButtonChecked(dlg, IDC_MODE_ZEN) == BST_CHECKED;
-        ctx.settings.schedule_enabled = ::IsDlgButtonChecked(dlg, IDC_SCHEDULE_CHECK) == BST_CHECKED;
-        ctx.settings.start_on_load = ::IsDlgButtonChecked(dlg, IDC_STARTONLOAD_CHECK) == BST_CHECKED;
-        ctx.settings.skip_when_user_active = ::IsDlgButtonChecked(dlg, IDC_SKIPACTIVE_CHECK) == BST_CHECKED;
-
-        BOOL translated = FALSE;
-        UINT interval = ::GetDlgItemInt(dlg, IDC_INTERVAL_EDIT, &translated, FALSE);
-        if (!translated || interval < 1) interval = 1;
-        if (interval > 60) interval = 60;
-        ctx.settings.interval_sec = static_cast<int>(interval);
-        ::SetDlgItemInt(dlg, IDC_INTERVAL_EDIT, interval, FALSE);
     }
 
     INT_PTR CALLBACK DialogProc(HWND dlg, UINT message, WPARAM wParam, LPARAM lParam)
@@ -222,7 +243,6 @@ namespace
             ::CheckDlgButton(dlg, IDC_SKIPACTIVE_CHECK, ctx->settings.skip_when_user_active ? BST_CHECKED : BST_UNCHECKED);
             ::SetDlgItemInt(dlg, IDC_INTERVAL_EDIT, static_cast<UINT>(ctx->settings.interval_sec), FALSE);
 
-            // Keep the same look as the TrafficMonitor dialogs
             ApplyFontToAll(dlg, GetDialogFont(ctx->dpi));
             ScaleForDpi(dlg, ctx->dpi);
 
@@ -257,18 +277,19 @@ namespace
             const int id = LOWORD(wParam);
             const int code = HIWORD(wParam);
 
-            if (id == IDOK && code == BN_CLICKED)
+            if (id == IDOK)
             {
+                PushSettings(dlg);          // 收口一次，顺便把间隔夹到 1-60
                 ::KillTimer(dlg, kRefreshTimer);
-                OptionsContext* ctx = GetContext(dlg);
-                if (ctx != nullptr)
-                    ReadControls(dlg, *ctx);
                 ::EndDialog(dlg, IDOK);
                 return TRUE;
             }
 
             if (id == IDCANCEL)
             {
+                OptionsContext* ctx = GetContext(dlg);
+                if (ctx != nullptr && ctx->apply)
+                    ctx->apply(ctx->original);   // 取消：回滚到打开时的设置
                 ::KillTimer(dlg, kRefreshTimer);
                 ::EndDialog(dlg, IDCANCEL);
                 return TRUE;
@@ -282,8 +303,21 @@ namespace
                 return TRUE;
             }
 
-            if ((id == IDC_SCHEDULE_CHECK || id == IDC_ENABLE_CHECK) && code == BN_CLICKED)
+            if (id == IDC_INTERVAL_EDIT && code == EN_CHANGE)
             {
+                BOOL translated = FALSE;
+                const UINT value = ::GetDlgItemInt(dlg, IDC_INTERVAL_EDIT, &translated, FALSE);
+                if (translated && value >= 1 && value <= 60)
+                    PushSettings(dlg);
+                RefreshStatus(dlg);
+                return TRUE;
+            }
+
+            if ((id == IDC_ENABLE_CHECK || id == IDC_MODE_ZEN || id == IDC_MODE_NORMAL ||
+                 id == IDC_SCHEDULE_CHECK || id == IDC_STARTONLOAD_CHECK || id == IDC_SKIPACTIVE_CHECK) &&
+                code == BN_CLICKED)
+            {
+                PushSettings(dlg);
                 RefreshStatus(dlg);
                 return TRUE;
             }
@@ -291,9 +325,14 @@ namespace
         }
 
         case WM_CLOSE:
+        {
+            OptionsContext* ctx = GetContext(dlg);
+            if (ctx != nullptr && ctx->apply)
+                ctx->apply(ctx->original);
             ::KillTimer(dlg, kRefreshTimer);
             ::EndDialog(dlg, IDCANCEL);
             return TRUE;
+        }
 
         default:
             break;

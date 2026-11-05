@@ -20,7 +20,7 @@ public:
     const wchar_t* GetItemId() const override { return L"MouseJiggler01"; }
     const wchar_t* GetItemLableText() const override { return L"晃动"; }
     const wchar_t* GetItemValueText() const override { return m_engine->ItemValueText(); }
-    const wchar_t* GetItemValueSampleText() const override { return L"计划外"; }
+    const wchar_t* GetItemValueSampleText() const override { return L"手动"; }
 
     int OnMouseEvent(MouseEventType type, int x, int y, void* hWnd, int flag) override;
 

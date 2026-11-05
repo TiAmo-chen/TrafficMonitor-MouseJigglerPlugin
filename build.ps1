@@ -33,7 +33,7 @@ function Build-One([string]$platformName) {
 
 if ($Package) {
     # Build both architectures and produce release zips: MouseJiggler_V<version>_<arch>.zip
-    $version = '1.0'
+    $version = '1.1'
     $dist = Join-Path $PSScriptRoot 'dist'
     New-Item -ItemType Directory -Force -Path $dist | Out-Null
     foreach ($pair in @(@('x64', 'x64'), @('Win32', 'x86'))) {

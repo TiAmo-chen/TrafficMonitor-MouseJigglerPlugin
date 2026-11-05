@@ -15,8 +15,9 @@ never sees the machine as idle. Two modes, configurable interval, optional
   - 禅动（默认）：发送位移为 0 的移动事件，指针**不会动**，但系统空闲计时被重置
   - 普通：指针 ±4 像素来回微动，肉眼可见
 - **可调间隔** 1–60 秒（默认 1 秒）
-- **时间计划**（可关）：只在**周一~周五 08:30–17:30** 生效，窗口外自动停、进入窗口自动起。
-  窗口参数可在 ini 里改（见下）。
+- **时间计划**（可关）：默认在工作日 **08:30 自动打开、17:30 自动关闭**（周一~周五）。
+  其余时间由主开关说了算：下班后想用就直接勾上“启用鼠标晃动”，状态里会显示
+  `运行中（计划外·手动）`，第二天 17:30 计划边界仍会把它收掉。窗口参数可在 ini 里改（见下）。
 - **可选**：用户正在操作鼠标时跳过本次晃动
 - 无独立窗口、无托盘图标，全部设置都在 TrafficMonitor 里
 
@@ -42,15 +43,15 @@ never sees the machine as idle. Two modes, configurable interval, optional
 
 ```ini
 [general]
-enable=1                 ; 用户是否希望晃动
+enable=1                 ; 用户是否希望晃动（时间计划会自动改这个值）
 zen=1                    ; 1=禅动（指针不动），0=普通（±4 像素）
 interval=1               ; 晃动间隔，1-60 秒
-start_on_load=1          ; TrafficMonitor 启动后立即开始
+start_on_load=1          ; TrafficMonitor 启动后（若在计划窗口内）立即开始
 skip_when_user_active=0  ; 1=用户正在操作鼠标时跳过本次
 
 [schedule]
-enabled=1                ; 是否只在工作时间生效
-weekdays_only=1          ; 1=仅周一~周五
+enabled=1                ; 1=到点自动开关主开关
+weekdays_only=1          ; 1=只在周一~周五自动打开
 start_min=510            ; 08:30（从 0 点起的分钟数）
 duration_min=540         ; 持续 9 小时 -> 17:30
 ```
@@ -97,8 +98,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\capture-ui.ps1
 A native x64 TrafficMonitor plugin (C++ / Win32, no MFC) that periodically jiggles the
 mouse cursor to keep the session active. Two modes: **zen** (zero-delta movement, the
 pointer stays still but the system idle timer is reset) and **normal** (±4 px visible
-jiggle). Configurable 1–60 s interval, optional work-hours schedule
-(Mon–Fri 08:30–17:30 by default, editable in the ini file).
+jiggle). Configurable 1–60 s interval; the switch is turned on/off automatically at the
+work-window boundaries (Mon–Fri 08:30 / 17:30 by default), and you can override it
+manually at any time.
 
 Install: drop `MouseJiggler.dll` into `plugins\` next to `TrafficMonitor.exe` and restart
 it. Settings live under `Options → General Settings → Plugin Manager → MouseJiggler → Options`.

@@ -18,10 +18,10 @@
 | 要求 | 我们的状态 |
 |---|---|
 | 有一个能直接下载 dll 的地址 | ✅ [Releases](https://github.com/TiAmo-chen/TrafficMonitor-MouseJigglerPlugin/releases/latest)（`.../releases/latest` 这种链接最稳） |
-| 提供 x64 / x86 两个包 | ✅ `MouseJiggler_V1.0_x64.zip` / `MouseJiggler_V1.0_x86.zip`（官方插件也是按位数分包） |
+| 提供 x64 / x86 两个包 | ✅ `MouseJiggler_V1.1_x64.zip` / `MouseJiggler_V1.1_x86.zip`（官方插件也是按位数分包） |
 | dll 文件名唯一、不与其他插件冲突 | ✅ `MouseJiggler.dll`，`plugins_version.xml` 里没有同名项 |
-| 插件信息完整（插件管理里能显示名称/版本/作者） | ✅ `TMI_NAME=MouseJiggler`、`TMI_VERSION=1.0` |
-| 三处版本号一致 | ✅ 插件 `TMI_VERSION=1.0`、release 标题 `V1.0`、xml `version="1.0"` |
+| 插件信息完整（插件管理里能显示名称/版本/作者） | ✅ `TMI_NAME=MouseJiggler`、`TMI_VERSION=1.1` |
+| 三处版本号一致 | ✅ 插件 `TMI_VERSION=1.1`、release 标题 `V1.1`、xml `version="1.1"` |
 | 一张列表用截图 | ✅ `docs/options-dialog.png` |
 | 说明支持的 TrafficMonitor 版本 | TrafficMonitor 1.8.6（插件接口 v7）实测 |
 
@@ -73,7 +73,7 @@ API v7).
 ### 3. `plugins_version.xml` —— 加一行
 
 ```xml
-    <plugin file_name="MouseJiggler.dll" version="1.0"/>
+    <plugin file_name="MouseJiggler.dll" version="1.1"/>
 ```
 
 ### 4. 图片
@@ -102,7 +102,7 @@ API v7).
 下载链接：https://github.com/TiAmo-chen/TrafficMonitor-MouseJigglerPlugin/releases/latest
 许可证：MIT
 测试环境：TrafficMonitor 1.8.6 x64（Windows 11）
-dll 文件名：MouseJiggler.dll（版本 1.0，与 plugins_version.xml 一致）
+dll 文件名：MouseJiggler.dll（版本 1.1，与 plugins_version.xml 一致）
 
 截图见附件。
 ```

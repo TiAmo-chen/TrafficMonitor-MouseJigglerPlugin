@@ -56,6 +56,9 @@ public:
     void Apply(const PluginSettings& settings);
     void RequestJiggleOnce();
 
+    // 时间计划到边界时由引擎自动切换主开关，这里取出切换后的值（UI 线程调用，用于同步设置并落盘）
+    bool TakeAutoToggle(bool& value);
+
     Status GetStatus() const;
 
     const wchar_t* ItemValueText() const { return m_value_text.Get(); }
@@ -71,6 +74,8 @@ private:
     void UpdateTexts(const SYSTEMTIME& local, bool running);
     void PushNotification(const std::wstring& text);
     void LogError(const wchar_t* what, DWORD error);
+    void ApplyScheduleBoundaries(const SYSTEMTIME& local);
+    void ReportAutoToggle(bool value);
     bool EffectiveNow(const SYSTEMTIME& local) const;
 
     static constexpr int kJiggleDelta = 4;
@@ -94,10 +99,15 @@ private:
     std::atomic<unsigned long long> m_count{ 0 };
     std::atomic<unsigned long long> m_last_jiggle{ 0 };
 
+    // 自动开关事件（引擎线程写，UI 线程取出后写回配置文件）
+    std::atomic<bool> m_auto_toggle_pending{ false };
+    std::atomic<bool> m_auto_toggle_value{ false };
+
     // Engine thread only
     bool m_zig{ true };
     bool m_prev_in_schedule{ true };
     bool m_first_tick{ true };
+    int m_prev_minute{ -1 };
 
     CTextSlot m_value_text;
     CTextSlot m_tooltip_text;

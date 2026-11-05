@@ -74,8 +74,19 @@ void CMouseJigglerPlugin::OnInitialize(ITrafficMonitor* pApp)
     m_config_path = config_dir + L"MouseJiggler.ini";
 
     SettingsStore::Load(m_config_path, m_settings);
-    if (!m_settings.start_on_load)
-        m_settings.enable = false;
+
+    // 启动时决定初始状态：勾了“启动后立即开始”且当前在计划窗口内（或未启用计划）才开
+    {
+        CSchedule schedule;
+        schedule.Configure(m_settings.schedule_start_min, m_settings.schedule_duration_min, m_settings.schedule_weekdays_only);
+        SYSTEMTIME now{};
+        ::GetLocalTime(&now);
+        const bool in_window = !m_settings.schedule_enabled || schedule.InWindow(now);
+        if (!m_settings.start_on_load || !in_window)
+            m_settings.enable = false;
+        else
+            m_settings.enable = true;
+    }
 
     m_engine.Start(m_settings, config_dir + L"MouseJiggler.log");
     SettingsStore::Save(m_config_path, m_settings);
@@ -90,6 +101,15 @@ IPluginItem* CMouseJigglerPlugin::GetItem(int index)
 
 void CMouseJigglerPlugin::DataRequired()
 {
+    // 时间计划在边界处自动切换了主开关：同步到本地设置并落盘，保证重启后状态一致
+    bool auto_value = false;
+    if (m_engine.TakeAutoToggle(auto_value))
+    {
+        m_settings.enable = auto_value;
+        if (!m_config_path.empty())
+            SettingsStore::Save(m_config_path, m_settings);
+    }
+
     if (m_app == nullptr)
         return;
 
@@ -122,7 +142,7 @@ const wchar_t* CMouseJigglerPlugin::GetInfo(PluginInfoIndex index)
     case TMI_URL:
         return L"https://github.com/TiAmo-chen/TrafficMonitor-MouseJigglerPlugin";
     case TMI_VERSION:
-        return L"1.0";
+        return L"1.1";
     default:
         return L"";
     }
@@ -174,29 +194,34 @@ void CMouseJigglerPlugin::ShowOptions(HWND parent)
 {
     OptionsContext context;
     context.settings = m_settings;
+    context.original = m_settings;
     context.engine = &m_engine;
     context.dpi = TaskbarDpi();
-
-    if (COptionsDlg::Show(parent, context))
+    context.apply = [this](const PluginSettings& value)
     {
-        m_settings = context.settings;
+        m_settings = value;
         ApplyAndSave();
-    }
+    };
+
+    // 对话框内部即时生效，取消/关闭已自行回滚，这里不用再处理
+    COptionsDlg::Show(parent, context);
 }
 
 ITMPlugin::OptionReturn CMouseJigglerPlugin::ShowOptionsDialog(void* hParent)
 {
     OptionsContext context;
     context.settings = m_settings;
+    context.original = m_settings;
     context.engine = &m_engine;
     context.dpi = TaskbarDpi();
+    context.apply = [this](const PluginSettings& value)
+    {
+        m_settings = value;
+        ApplyAndSave();
+    };
 
-    if (!COptionsDlg::Show(static_cast<HWND>(hParent), context))
-        return OR_OPTION_UNCHANGED;
-
-    m_settings = context.settings;
-    ApplyAndSave();
-    return OR_OPTION_CHANGED;
+    const bool accepted = COptionsDlg::Show(static_cast<HWND>(hParent), context);
+    return (accepted && context.changed) ? OR_OPTION_CHANGED : OR_OPTION_UNCHANGED;
 }
 
 int CMouseJigglerPlugin::GetCommandCount()
